@@ -7,7 +7,7 @@ stages:
   - test
   - {% if cookiecutter.with_fastapi_api|int or cookiecutter.with_streamlit_app|int %}deploy{% else %}publish{% endif %}
 
-💻 compute:image hash:docker:
+💻 compute:image-hash:docker:
   artifacts:
     reports:
       dotenv: .env
@@ -85,14 +85,14 @@ stages:
     DOCKER_REGISTRY_USER: $CI_REGISTRY_USER
     DOCKER_REGISTRY_PASSWORD: $CI_REGISTRY_PASSWORD
 
-🏗 build:ci image:docker:
+🏗 build:ci-image:docker:
   artifacts:
     reports:
       dotenv: .env
   extends: [.docker]
 
   needs:
-    - job: 💻 compute:hash:docker-images
+    - job: 💻 compute:image-hash:docker
       artifacts: true
   stage: build
 
@@ -106,7 +106,8 @@ stages:
     {%- if cookiecutter.private_package_repository_name %}
     - poetry config http-basic.{{ cookiecutter.private_package_repository_name|slugify }} "gitlab-ci-token" "$CI_JOB_TOKEN"
     {%- endif %}
-    - poetry install --no-interaction  # TODO: Add `--only test` when Poetry 1.2.0 is released.
+    # TODO: Add `--only test` when Poetry 1.2.0 is released.
+    - poetry install --no-interaction
 
 
   cache:
@@ -116,6 +117,9 @@ stages:
       - .pytest_cache/
 
   image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
+  needs:
+    - job: 🏗 build:ci-image:docker
+      optional: true
   stage: test
 
 
