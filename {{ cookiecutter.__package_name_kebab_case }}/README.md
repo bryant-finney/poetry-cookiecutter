@@ -104,11 +104,15 @@ To serve this app, run `docker compose up app` and open [localhost:8000](http://
 <details>
 <summary>Developing</summary>
 
+{%- if cookiecutter.with_commitizen %}
 - This project follows the [Conventional Commits](https://www.conventionalcommits.org/) standard to automate [Semantic Versioning](https://semver.org/) and [Keep A Changelog](https://keepachangelog.com/) with [Commitizen](https://github.com/commitizen-tools/commitizen).
+{%- endif %}
 - Run `poe` from within the development environment to print a list of [Poe the Poet](https://github.com/nat-n/poethepoet) tasks available to run on this project.
 - Run `poetry add {package}` from within the development environment to install a run time dependency and add it to `pyproject.toml` and `poetry.lock`.
+    - If the package is for development only, include the `--dev` flag so that it won't be installed in production environments
 - Run `poetry remove {package}` from within the development environment to uninstall a run time dependency and remove it from `pyproject.toml` and `poetry.lock`.
 - Run `poetry update` from within the development environment to upgrade all dependencies to the latest versions allowed by `pyproject.toml`.
+{%- if cookiecutter.with_commitizen %}
 - Run `cz bump` to bump the package's version, update the `CHANGELOG.md`, and create a git tag.
-
+{%- endif %}
 </details>
