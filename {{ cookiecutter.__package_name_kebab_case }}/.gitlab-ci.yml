@@ -1,18 +1,23 @@
+# pattern: jobs are generally named according to '{emoji} {function}:{object}[:{category}]'
+# pattern: jobs are generally ordered by execution stage; properties are ordered alphabetically
+# ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
 stages:
   - build
   - test
   - {% if cookiecutter.with_fastapi_api|int or cookiecutter.with_streamlit_app|int %}deploy{% else %}publish{% endif %}
 
-Compute Image Hash:
-  stage: build
-  script:
-    - export DOCKER_IMAGE_SHA="$(sha1sum Dockerfile poetry.lock pyproject.toml | sha1sum | cut -c 1-12)"
-    - echo "CI_IMAGE_SHA=$DOCKER_IMAGE_SHA" >> .env
+💻 compute:image hash:docker:
   artifacts:
     reports:
       dotenv: .env
 
-# Base Docker build script.
+  needs: []
+  script:
+    - export DOCKER_IMAGE_SHA="$(sha1sum Dockerfile poetry.lock pyproject.toml | sha1sum | cut -c 1-12)"
+    - echo "CI_IMAGE_SHA=$DOCKER_IMAGE_SHA" >> .env
+  stage: build
+
 .docker:
   after_script: [docker logout]
   before_script:
@@ -79,52 +84,66 @@ Compute Image Hash:
     DOCKER_REGISTRY_USER: $CI_REGISTRY_USER
     DOCKER_REGISTRY_PASSWORD: $CI_REGISTRY_PASSWORD
 
-# Build CI Docker image.
-Build CI:
+🏗 build:ci image:docker:
   artifacts:
     reports:
       dotenv: .env
   extends: [.docker]
-  stage: build
+
   needs:
-    - job: Compute Image Hash
+    - job: 💻 compute:hash:docker-images
       artifacts: true
+  stage: build
 
   variables:
     DOCKER_IMAGE: $CI_REGISTRY_IMAGE/ci
     DOCKER_TARGET: ci
 
-# Lint and test the package.
-Test:
-  stage: test
-  image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
+.test:
+  # define common properties to share between test jobs
+  before_script:
+    {%- if cookiecutter.private_package_repository_name %}
+    - poetry config http-basic.{{ cookiecutter.private_package_repository_name|slugify }} "gitlab-ci-token" "$CI_JOB_TOKEN"
+    {%- endif %}
+    - poetry install --no-interaction  # TODO: Add `--only test` when Poetry 1.2.0 is released.
+
+
   cache:
     key: $CI_COMMIT_REF_SLUG
     paths:
       - .mypy_cache/
       - .pytest_cache/
-  script:
-    {%- if cookiecutter.private_package_repository_name %}
-    - poetry config http-basic.{{ cookiecutter.private_package_repository_name|slugify }} "gitlab-ci-token" "$CI_JOB_TOKEN"
-    {%- endif %}
-    - poetry install --no-interaction  # TODO: Add `--only test` when Poetry 1.2.0 is released.
-    - poe lint
-    - poe test
-  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+
+  image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
+  stage: test
+
+
+☀️ lint:package:style:
+  artifacts:
+    untracked: true
+    reports:
+      junit: [reports/mypy.xml]
+  extends: [.test]
+  script: [poe lint]
+
+
+🧪 test:package:functionality:
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
         path: reports/coverage.xml
-      junit:
-        - reports/mypy.xml
-        - reports/pytest.xml
+      junit: [reports/pytest.xml]
     untracked: true
     when: always
 
+  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  extends: [.test]
+  script: [poe test]
+
 {% if not cookiecutter.with_fastapi_api|int and not cookiecutter.with_streamlit_app|int -%}
 # Publish this package version to a (private) package repository.
-Publish:
+🌐 publish:package:
   stage: publish
   image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
   script:
