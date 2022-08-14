@@ -94,7 +94,9 @@ To serve this app, run `docker compose up app` and open [localhost:8000](http://
        setx POETRY_AUTH_TOML_PATH %APPDATA%\pypoetry\auth.toml
        ```
    {%- endif %}
-2. [Install VS Code](https://code.visualstudio.com/) and [VS Code's Remote-Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Alternatively, install [PyCharm](https://www.jetbrains.com/pycharm/download/).
+2. [Install VS Code](https://code.visualstudio.com/) and
+   [VS Code's Remote-Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+   Alternatively, install [PyCharm](https://www.jetbrains.com/pycharm/download/).
    - _Optional:_ Install a [Nerd Font](https://www.nerdfonts.com/font-downloads) such as
      [FiraCode Nerd Font](https://github.com/ryanoasis/nerd-fonts/tree/master/patched-fonts/FiraCode)
      with `brew tap homebrew/cask-fonts && brew install --cask font-fira-code-nerd-font` and
@@ -136,4 +138,5 @@ To serve this app, run `docker compose up app` and open [localhost:8000](http://
 {%- if cookiecutter.with_commitizen %}
 - Run `cz bump` to bump the package's version, update the `CHANGELOG.md`, and create a git tag.
 {%- endif %}
+
 </details>

@@ -68,7 +68,8 @@ stages:
         .
 
     # Push all the tagged images.
-    - for DOCKER_TAG in $DOCKER_TAGS; do
+    - |
+      for DOCKER_TAG in $DOCKER_TAGS; do
         docker push "$DOCKER_IMAGE:$DOCKER_TAG"
       done
 
