@@ -39,7 +39,8 @@ stages:
         {%- endif %}
         --target "ci" \
         --pull \
-        $DOCKER_TAGS_JOINED \
+        --tag $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA \
+        --tag $DOCKER_IMAGE:$CI_COMMIT_REF_SLUG \
         .
 
     # Push all the tagged images.
