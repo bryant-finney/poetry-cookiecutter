@@ -103,7 +103,7 @@ repos:
           - -f
           - html
           - -o
-          - .reports/bandit.html
+          - reports/bandit.html
 
         additional_dependencies: [toml]
 
