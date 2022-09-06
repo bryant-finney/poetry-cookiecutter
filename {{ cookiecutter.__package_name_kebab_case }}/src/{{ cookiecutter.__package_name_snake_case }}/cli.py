@@ -1,5 +1,6 @@
 """{{ cookiecutter.package_name }} CLI."""
 
+# third party
 import typer
 
 app = typer.Typer()
