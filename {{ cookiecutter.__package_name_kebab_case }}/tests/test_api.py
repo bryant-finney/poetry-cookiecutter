@@ -1,7 +1,9 @@
 """Test {{ cookiecutter.package_name }} REST API."""
 
+# third party
 from fastapi.testclient import TestClient
 
+# local
 from {{ cookiecutter.__package_name_snake_case }}.api import app
 
 client = TestClient(app)

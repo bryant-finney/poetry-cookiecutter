@@ -9,6 +9,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from pytest_mock import MockerFixture
 
+# local
 from {{ cookiecutter.__package_name_snake_case }}.sentry import configure_sentry
 
 @pytest.fixture

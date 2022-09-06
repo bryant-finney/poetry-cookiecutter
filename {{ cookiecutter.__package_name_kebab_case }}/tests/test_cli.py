@@ -1,7 +1,9 @@
 """Test {{ cookiecutter.package_name }} CLI."""
 
+# third party
 from typer.testing import CliRunner
 
+# local
 from {{ cookiecutter.__package_name_snake_case }}.cli import app
 
 runner = CliRunner()
