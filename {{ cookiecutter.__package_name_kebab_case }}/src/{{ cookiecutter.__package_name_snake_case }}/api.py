@@ -1,7 +1,9 @@
 """{{ cookiecutter.package_name }} REST API."""
 
+# stdlib
 import logging
 
+# third party
 import coloredlogs
 from fastapi import FastAPI
 

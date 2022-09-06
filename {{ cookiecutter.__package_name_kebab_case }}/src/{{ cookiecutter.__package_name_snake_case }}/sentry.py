@@ -1,8 +1,10 @@
 """Sentry configuration."""
 
+# stdlib
 import os
 from importlib.metadata import version
 
+# third party
 import sentry_sdk
 
 

@@ -1,117 +1,153 @@
+# pattern: jobs are generally named according to '{emoji} {function}:{object}[:{category}]'
+# pattern: jobs are generally ordered by execution stage; properties are ordered alphabetically
+# ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+variables:
+  PYTHON_VERSION: "{{ cookiecutter.python_version }}"
+
 stages:
   - build
   - test
   - {% if cookiecutter.with_fastapi_api|int or cookiecutter.with_streamlit_app|int %}deploy{% else %}publish{% endif %}
 
-Compute Image Hash:
-  stage: build
-  script:
-    - export DOCKER_IMAGE_SHA="$(sha1sum Dockerfile poetry.lock pyproject.toml | sha1sum | cut -c 1-12)"
-    - echo "CI_IMAGE_SHA=$DOCKER_IMAGE_SHA" >> .env
-  artifacts:
-    reports:
-      dotenv: .env
+🏗 build:ci-image:docker:
+  # use GitLab's docker-in-docker solution to build the image for CI jobs
+  after_script: [docker logout]
+  before_script:
+    - >
+      echo "$CI_REGISTRY_PASSWORD" |
+        docker login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
 
-# Base Docker build script.
-.docker:
   image: docker:stable
-  services:
-    - docker:stable-dind
-  variables:
-    DOCKER_REGISTRY: $CI_REGISTRY
-    DOCKER_REGISTRY_USER: $CI_REGISTRY_USER
-    DOCKER_REGISTRY_PASSWORD: $CI_REGISTRY_PASSWORD
+
   script:
+    # Build the Docker image with all of the selected tags.
     - |
-      echo "$DOCKER_REGISTRY_PASSWORD" | docker login --username "$DOCKER_REGISTRY_USER" --password-stdin "$DOCKER_REGISTRY"
-      DOCKER_PUSH=${DOCKER_PUSH:-$(timeout 2s docker pull "$DOCKER_IMAGE":"$DOCKER_IMAGE_SHA" >/dev/null 2>&1 && echo $? || echo $?)}
-      if [ "$DOCKER_PUSH" -ne 1 ]; then
-        echo "$DOCKER_IMAGE:$DOCKER_IMAGE_SHA exists, skipping this job..."
-      else
-        # Compile a list of image tags consisting of a hash of its contents, the latest tag if this
-        # pipeline is running for the default branch, and the Git tag if this commit is tagged.
-        DOCKER_TAGS="$DOCKER_IMAGE_SHA"
-        if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then DOCKER_TAGS="$DOCKER_TAGS latest"; fi
-        if [ -n "$CI_COMMIT_TAG" ]; then DOCKER_TAGS="$DOCKER_TAGS $CI_COMMIT_TAG"; fi
-        if [ -n "$CI_ENVIRONMENT_NAME" ]; then DOCKER_TAGS="$DOCKER_TAGS $CI_ENVIRONMENT_NAME"; fi
-        DOCKER_TAGS_JOINED=""
-        for DOCKER_TAG in $DOCKER_TAGS; do
-          DOCKER_TAGS_JOINED="$DOCKER_TAGS_JOINED --tag $DOCKER_IMAGE:$DOCKER_TAG"
-        done
-
-        # Build the Docker image with all of the selected tags.
+      {%- if cookiecutter.private_package_repository_name %}
+      echo "[http-basic.{{ cookiecutter.private_package_repository_name|slugify }}]" >> auth.toml
+      echo "username = \"gitlab-ci-token\"" >> auth.toml
+      echo "password = \"$CI_JOB_TOKEN\"" >> auth.toml
+      {%- endif %}
+      docker build \
+        --cache-from "$CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA" \
+        --cache-from "python:$PYTHON_VERSION-slim" \
+        --build-arg SOURCE_BRANCH="$CI_COMMIT_REF_NAME" \
+        --build-arg SOURCE_COMMIT="$CI_COMMIT_SHA" \
+        --build-arg SOURCE_TIMESTAMP="$CI_COMMIT_TIMESTAMP" \
         {%- if cookiecutter.private_package_repository_name %}
-        echo "[http-basic.{{ cookiecutter.private_package_repository_name|slugify }}]" >> auth.toml
-        echo "username = \"gitlab-ci-token\"" >> auth.toml
-        echo "password = \"$CI_JOB_TOKEN\"" >> auth.toml
+        --secret id=poetry_auth,src=auth.toml \
         {%- endif %}
-        DOCKER_BUILDKIT=1 docker build \
-          --cache-from "$CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA" \
-          --build-arg SOURCE_BRANCH="$CI_COMMIT_REF_NAME" \
-          --build-arg SOURCE_COMMIT="$CI_COMMIT_SHA" \
-          --build-arg SOURCE_TIMESTAMP="$CI_COMMIT_TIMESTAMP" \
-          {%- if cookiecutter.private_package_repository_name %}
-          --secret id=poetry_auth,src=auth.toml \
-          {%- endif %}
-          --target "$DOCKER_TARGET" \
-          --pull \
-          $DOCKER_TAGS_JOINED \
-          .
+        --target "ci" \
+        --pull \
+        --tag $DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA \
+        --tag $DOCKER_IMAGE:$CI_COMMIT_REF_SLUG \
+        .
 
-        # Push all the tagged images.
-        for DOCKER_TAG in $DOCKER_TAGS; do
-          docker push "$DOCKER_IMAGE:$DOCKER_TAG"
-        done
-      fi
-  rules:
-    - changes:
-        - Dockerfile
-        - poetry.lock
-        - pyproject.toml
+    # Push all the tagged images.
+    - docker push "$DOCKER_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - docker push "$DOCKER_IMAGE:$CI_COMMIT_REF_SLUG"
 
-# Build CI Docker image.
-Build CI:
-  extends:
-    - .docker
+  services: ["docker:stable-dind"]
   stage: build
-  variables:
-    DOCKER_IMAGE: $CI_REGISTRY_IMAGE/ci
-    DOCKER_TARGET: ci
-  artifacts:
-    reports:
-      dotenv: .env
 
-# Lint and test the package.
-Test:
-  stage: test
-  image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
+  variables:
+    DOCKER_BUILDKIT: "1"
+    DOCKER_IMAGE: $CI_REGISTRY_IMAGE/ci
+
+.test:
+  # define common properties to share between test jobs
+  before_script:
+    {%- if cookiecutter.private_package_repository_name %}
+    - poetry config http-basic.{{ cookiecutter.private_package_repository_name|slugify }} "gitlab-ci-token" "$CI_JOB_TOKEN"
+    {%- endif %}
+    # TODO: Add `--only test` when Poetry 1.2.0 is released.
+    - poetry install --no-interaction
+
   cache:
     key: $CI_COMMIT_REF_SLUG
     paths:
       - .mypy_cache/
       - .pytest_cache/
+
+  image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
+  needs:
+    - job: 🏗 build:ci-image:docker
+      optional: true
+  stage: test
+
+☀️ pre-commit:
+  # execute each linter through pre-commit
+  artifacts:
+    paths: [reports]
+    reports:
+      junit: reports/mypy.xml
+
+  before_script:
+    - pip install pre-commit anybadge
+    - pre-commit install
+
+    # create the directory for storing badges
+    - dirname "$BADGE_PATH" | xargs mkdir -p
+
+    # also create one for reports
+    - mkdir -p .reports
+
+    # assume the linter has failed; if it passes, the badge will be updated in the script
+    - anybadge --label="$HOOK_ID" --value=failed --color=red --file="$BADGE_PATH"
+
+  cache:
+    key: pre-commit
+    paths: [.cache, .mypy_cache]
+
+  extends: [.test]
+  parallel:
+    matrix:
+      - HOOK_ID:
+          - black
+          - prettier
+          - isort
+          - mypy
+          - flake8
+          - pydocstyle
+          - bandit
   script:
-    {%- if cookiecutter.private_package_repository_name %}
-    - poetry config http-basic.{{ cookiecutter.private_package_repository_name|slugify }} "gitlab-ci-token" "$CI_JOB_TOKEN"
-    {%- endif %}
-    - poetry install --no-interaction  # TODO: Add `--only test` when Poetry 1.2.0 is released.
-    - poe lint
-    - poe test
-  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+    - pre-commit run --all-files $HOOK_ID
+    - git diff --exit-code
+    - |
+      case "$HOOK_ID" in
+      isort)
+        anybadge --overwrite --label=imports --value=$HOOK_ID --color=teal --file=$BADGE_PATH
+        ;;
+      black)
+        anybadge --overwrite --label="code style" --value="$HOOK_ID" --color="$HOOK_ID" --file=$BADGE_PATH
+        ;;
+      prettier)
+        anybadge --overwrite --label="code style" --value="$HOOK_ID" --color=aqua --file=$BADGE_PATH
+        ;;
+      *)
+        anybadge --overwrite --label=$HOOK_ID --value=checked --color=blue --file=$BADGE_PATH
+        ;;
+      esac
+
+  stage: qa
+  variables:
+    BADGE_PATH: reports/$HOOK_ID.svg
+
+🧪 test:package:functionality:
   artifacts:
     reports:
-      coverage_report: 
+      coverage_report:
         coverage_format: cobertura
         path: reports/coverage.xml
-      junit:
-        - reports/mypy.xml
-        - reports/pytest.xml
+      junit: [reports/pytest.xml]
     untracked: true
     when: always
 
+  coverage: '/^TOTAL.*\s+(\d+(?:\.\d+)?)%/'
+  extends: [.test]
+  script: [poe test]
+
 {% if not cookiecutter.with_fastapi_api|int and not cookiecutter.with_streamlit_app|int -%}
-# Publish this package version to a (private) package repository.
-Publish:
+🌐 publish:package:
   stage: publish
   image: $CI_REGISTRY_IMAGE/ci:$CI_IMAGE_SHA
   script:
@@ -137,6 +173,7 @@ Publish:
     DOCKER_PUSH: 1
     DOCKER_TARGET: app
   when: manual
+
 {% for environment in ["feature", "development", "test", "acceptance", "production"] %}
 Deploy ({{ environment }}):
   extends:
