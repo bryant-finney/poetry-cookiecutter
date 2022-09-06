@@ -69,7 +69,7 @@ To serve this app, run `docker compose up app` and open [localhost:8000](http://
    ```
 {%- endif %}
 {%- endif %}
-1. [Install Docker Desktop](https://www.docker.com/get-started).
+3. [Install Docker Desktop](https://www.docker.com/get-started).
    - Enable _Use Docker Compose V2_ in Docker Desktop's preferences window.
    - _Linux only_:
      - [Configure Docker and Docker Compose to use the BuildKit build system](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds).
@@ -94,7 +94,7 @@ To serve this app, run `docker compose up app` and open [localhost:8000](http://
        setx POETRY_AUTH_TOML_PATH %APPDATA%\pypoetry\auth.toml
        ```
    {%- endif %}
-2. [Install VS Code](https://code.visualstudio.com/) and
+4. [Install VS Code](https://code.visualstudio.com/) and
    [VS Code's Remote-Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
    Alternatively, install [PyCharm](https://www.jetbrains.com/pycharm/download/).
    - _Optional:_ Install a [Nerd Font](https://www.nerdfonts.com/font-downloads) such as
